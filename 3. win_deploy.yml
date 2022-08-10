@@ -1,0 +1,53 @@
+trigger:
+ - master
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+stages:
+  -  stage: Bulidcode
+     displayName: Bulidcode
+     pool:
+       name: selfagent1
+     jobs:
+       -  job: 
+          steps:
+          - task: VSBuild@1
+            inputs:
+              solution: '$(solution)'
+              msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+              platform: '$(buildPlatform)'
+              configuration: '$(buildConfiguration)'
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
+  - stage: DEV
+    pool: 
+       name: Dgroup1
+    jobs: 
+      -  job: webapp
+         displayName: Dev-webapp
+         
+         pool:
+          name: Dgroup1
+         steps:
+           - task: DownloadBuildArtifacts@1
+             inputs:
+               buildType: 'current'
+               downloadType: 'single'
+               artifactName: 'drop'
+               downloadPath: '$(System.ArtifactsDirectory)'
+           - task: IISWebAppManagementOnMachineGroup@0
+             inputs:
+               EnableIIS: true
+               IISDeploymentType: 'IISWebsite'
+               ActionIISWebsite: 'CreateOrUpdateWebsite'
+               WebsiteName: 'vm-win'
+               WebsitePhysicalPath: '%SystemDrive%\inetpub\wwwroot'
+               WebsitePhysicalPathAuth: 'WebsiteUserPassThrough'
+           - task: IISWebAppDeploymentOnMachineGroup@0
+             inputs:
+               WebSiteName: 'win-vm'
+               Package: '$(System.ArtifactsDirectory)\**\*.zip'
